@@ -80,7 +80,6 @@ char		**ft_split(char const *s, char c)
 {
 	char	**arr;
 	char	*trimed_s;
-	int		begin;
 	int		k;
 	char	set[2];
 
@@ -90,7 +89,6 @@ char		**ft_split(char const *s, char c)
 		arr[0] = NULL;
 		return (arr);
 	}
-	begin = 0;
 	k = 0;
 	set[0] = c;
 	set[1] = '\0';

@@ -5,9 +5,6 @@
 
 
 
-
-
-
 int main(int argc, char** argv)
 {
     int validation_result = validate_args(argc, argv);
@@ -15,10 +12,10 @@ int main(int argc, char** argv)
         return validation_result;
     }
 
-    char* ip_source = argv[1];
-    char* ip_target = argv[3];
-    char* mac_source = argv[2];
-    char* mac_target = argv[4];
+    // char* ip_source = argv[1];
+    // char* ip_target = argv[3];
+    // char* mac_source = argv[2];
+    // char* mac_target = argv[4];
 
     return SUCCESS;
 }
