@@ -4,19 +4,29 @@
 #include <sys/socket.h>
 #include <ifaddrs.h>
 #include <netinet/in.h>
+#include <netinet/if_ether.h>
 #include "ft_status.h"
 #include "malcolm_validator.h"
 #include "libft.h"
 
 
-char*   chooseInterface(void)
+struct spoofaddrs
+{
+    char    *ip_source;
+    char    *mac_source;
+    char    *ip_target;
+    char    *mac_target;
+};
+
+
+char   *chooseInterface(void)
 {
     struct ifaddrs  *ifaddr, *ifa; //for network interfaces
     char            *interface_name;
 
     if (getifaddrs(&ifaddr) < 0)
     {
-        printf("Can't get network interfaces");
+        printf("ERROR: Can't get network interfaces");
         perror("getifaddrs");
         exit(CANT_GET_NETWORK_INTERFACES);
     }
@@ -41,35 +51,63 @@ char*   chooseInterface(void)
 
 }
 
+int     spoof(struct spoofaddrs addrs, char *interface_name, int sock)
+{
+    char                done, buf[ETH_FRAME_LEN];
+    size_t              reclen;
+    struct sockaddr_in  from;
+    socklen_t           fromlen;
+
+    fromlen = sizeof(from);
+    done = 0;
+
+    printf("interface: %s\n", interface_name);
+    while (!done)
+    {
+        reclen = recvfrom(sock, buf, ETH_FRAME_LEN, 0, &from, &fromlen);
+        if(reclen < 0)
+        {
+            perror("ERROR: Can't receive message\n");
+            exit(CANT_RECEIVE_MESSAGE);
+        }
+        printf("received %d bytes\n", reclen);
+        printf("from %s\n", inet_ntoa(from.sin_addr));
+        ft_bzero(buf+reclen, ETH_FRAME_LEN-reclen);
+
+    }
+}
+
 
 int     main(int argc, char** argv)
 {
-    int             validation_result, sock;
-    char            *ip_source, *ip_target, *mac_source, *mac_target, *interface_name;
+    int                 validation_result, sock;
+    char                *ip_source, *ip_target, *mac_source, *mac_target, *interface_name;
+    struct spoofaddrs   spaddrs;
 
     validation_result = validate_args(argc, argv);
     if (validation_result != SUCCESS) {
         return validation_result;
     }
 
-    ip_source = argv[1];
-    ip_target = argv[3];
-    mac_source = argv[2];
-    mac_target = argv[4];
-    printf("%s, %s, %s, %s\n", ip_source, ip_target, mac_source, mac_target);
+    spaddrs.ip_source = argv[1];
+    spaddrs.ip_target = argv[3];
+    spaddrs.mac_source = argv[2];
+    spaddrs.mac_target = argv[4];
     
     interface_name = chooseInterface();
     printf("using interface: %s\n", interface_name);
 
 
-    sock = socket(AF_PACKET, SOCK_RAW, 0);    
+    sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));    
     // sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if (sock < 0)
     {
-        printf("Can't open socket\n");
+        printf("ERROR: Can't open socket\n");
         perror("socket");
         return CANT_OPEN_SOCKET;
     }
+
+    spoof(spaddrs, interface_name, sock);
 
     return SUCCESS;
 }
