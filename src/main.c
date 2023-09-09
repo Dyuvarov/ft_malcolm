@@ -55,13 +55,18 @@ int     spoof(struct spoofaddrs addrs, char *interface_name, int sock)
 {
     char                done, buf[ETH_FRAME_LEN];
     size_t              reclen;
-    struct sockaddr_in  from;
+    struct sockaddr     from;
     socklen_t           fromlen;
+    struct arphdr      *arp;
+    struct ether_header *eth;
+    uint16_t            type;
+    uint16_t            opcode;
 
     fromlen = sizeof(from);
     done = 0;
 
     printf("interface: %s\n", interface_name);
+    printf("waiting for ARP request\n");
     while (!done)
     {
         reclen = recvfrom(sock, buf, ETH_FRAME_LEN, 0, &from, &fromlen);
@@ -70,9 +75,18 @@ int     spoof(struct spoofaddrs addrs, char *interface_name, int sock)
             perror("ERROR: Can't receive message\n");
             exit(CANT_RECEIVE_MESSAGE);
         }
-        printf("received %d bytes\n", reclen);
-        printf("from %s\n", inet_ntoa(from.sin_addr));
-        ft_bzero(buf+reclen, ETH_FRAME_LEN-reclen);
+        ft_bzero(buf+reclen, ETH_FRAME_LEN - reclen);
+        
+        eth = (struct ether_header *)buf;
+        type = ntohs(eth->ether_type);
+        arp = (struct arphdr *) (buf + sizeof(struct ether_header));
+        opcode = ntohs(arp->ar_op);
+        if (!(type == ETHERTYPE_ARP && opcode == ARPOP_REQUEST))
+        {
+            continue;
+        }
+        printf("received arp request\n");
+        done = 1;
 
     }
 }
@@ -98,7 +112,7 @@ int     main(int argc, char** argv)
     printf("using interface: %s\n", interface_name);
 
 
-    sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));    
+    sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));    
     // sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if (sock < 0)
     {
