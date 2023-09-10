@@ -7,16 +7,8 @@
 #include <netinet/if_ether.h>
 #include "ft_status.h"
 #include "malcolm_validator.h"
+#include "ft_spoof.h"
 #include "libft.h"
-
-
-struct spoofaddrs
-{
-    char    *ip_source;
-    char    *mac_source;
-    char    *ip_target;
-    char    *mac_target;
-};
 
 
 char   *chooseInterface(void)
@@ -53,19 +45,17 @@ char   *chooseInterface(void)
 
 int     spoof(struct spoofaddrs addrs, char *interface_name, int sock)
 {
-    char                done, buf[ETH_FRAME_LEN];
+    char                done, buf[sizeof(struct ft_ethhdr) + sizeof(struct ft_arphdr)];
     size_t              reclen;
     struct sockaddr     from;
     socklen_t           fromlen;
-    struct arphdr      *arp;
-    struct ether_header *eth;
-    uint16_t            type;
-    uint16_t            opcode;
+    struct ft_ethhdr    *eth;
+    struct ft_arphdr    *arp;
+    uint16_t            ptype, opcode;
 
     fromlen = sizeof(from);
     done = 0;
 
-    printf("interface: %s\n", interface_name);
     printf("waiting for ARP request\n");
     while (!done)
     {
@@ -75,13 +65,12 @@ int     spoof(struct spoofaddrs addrs, char *interface_name, int sock)
             perror("ERROR: Can't receive message\n");
             exit(CANT_RECEIVE_MESSAGE);
         }
-        ft_bzero(buf+reclen, ETH_FRAME_LEN - reclen);
         
-        eth = (struct ether_header *)buf;
-        type = ntohs(eth->ether_type);
-        arp = (struct arphdr *) (buf + sizeof(struct ether_header));
-        opcode = ntohs(arp->ar_op);
-        if (!(type == ETHERTYPE_ARP && opcode == ARPOP_REQUEST))
+        eth = (struct ft_ethhdr *)buf;
+        ptype = ntohs(eth->type);
+        arp = (struct ft_arphdr *) (buf + sizeof(struct ft_ethhdr));
+        opcode = ntohs(arp->op);
+        if (!(ptype == ETHERTYPE_ARP && opcode == ARPOP_REQUEST))
         {
             continue;
         }
@@ -109,7 +98,6 @@ int     main(int argc, char** argv)
     spaddrs.mac_target = argv[4];
     
     interface_name = chooseInterface();
-    printf("using interface: %s\n", interface_name);
 
 
     sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));    
