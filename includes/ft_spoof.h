@@ -28,10 +28,10 @@ struct ft_arphdr
 
 struct spoofaddrs
 {
-    char    *ip_source;
-    char    *mac_source;
-    char    *ip_target;
-    char    *mac_target;
+    uint8_t  ip_source[IP_LEN];
+    uint8_t  mac_source[MAC_LEN];
+    uint8_t  ip_target[IP_LEN];
+    uint8_t  mac_target[MAC_LEN];
 };
 
 #endif //FT_SPOOF_H
