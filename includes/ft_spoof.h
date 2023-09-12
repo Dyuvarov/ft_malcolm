@@ -26,6 +26,13 @@ struct ft_arphdr
     uint8_t     tpa[IP_LEN];   // protocol address of target
 };
 
+// follownig RFC 826
+struct ft_arpbody
+{
+    struct ft_ethhdr eth;
+    struct ft_arphdr arp;
+};
+
 struct spoofaddrs
 {
     uint8_t  ip_source[IP_LEN];
