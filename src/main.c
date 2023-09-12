@@ -61,6 +61,26 @@ char   *ipv4_to_str(uint8_t *addr)
     return str;
 }
 
+int     is_arp_request_from_target(uint8_t *ip_rqst, uint8_t *mac_rqst, uint8_t *ip_target, uint8_t *mac_target)
+{
+    for(int i = 0; i < IP_LEN; ++i)
+    {
+        if (ip_rqst[i] != ip_target[i])
+        {
+            return 0;
+        }
+    }
+
+    for(int i = 0; i < MAC_LEN; ++i)
+    {
+        if(mac_rqst[i] != mac_target[i])
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 int     spoof(struct spoofaddrs addrs, char *interface_name, int sock)
 {
     char                done, buf[sizeof(struct ft_ethhdr) + sizeof(struct ft_arphdr)], arp_src_ip[IP_LEN+IP_LEN], arp_src_mac[MAC_LEN+MAC_LEN];
@@ -93,8 +113,13 @@ int     spoof(struct spoofaddrs addrs, char *interface_name, int sock)
             continue;
         }
 
-        printf("received arp request from ip=%s, mac=%s\n", ipv4_to_str(arp->spa), "");
-        done = 1;
+        printf("received arp request from ip=%s\n", ipv4_to_str(arp->spa));
+
+        if (is_arp_request_from_target(arp->spa, arp->sha, addrs.ip_target, addrs.mac_target))
+        {
+            printf("ARP request from target!\n");
+            done = 1;
+        }
     }
 }
 
