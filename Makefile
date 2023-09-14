@@ -2,7 +2,7 @@ NAME		= ft_malcolm
 INC_DIR		= ./includes
 SRC_DIR		= ./src
 CC			= gcc
-TEMP		= main.c malcolm_validator.c
+TEMP		= main.c malcolm_validator.c parser.c
 			  
 SRCS		= $(addprefix $(SRC_DIR)/, $(TEMP))
 OBJS		= $(SRCS:.c=.o)

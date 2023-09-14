@@ -1,7 +1,4 @@
 #include "malcolm_validator.h"
-#include "libft.h"
-#include "ft_status.h"
-#include <stdio.h>
 
 int validate_ip_v4(char const* ip)
 {
