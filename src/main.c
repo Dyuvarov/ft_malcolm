@@ -110,7 +110,7 @@ int     send_arp_response(struct spoofaddrs addrs, struct ft_ethhdr *eth, struct
         perror("Can't send ARP response");
         return CANT_SEND_ARP_RESPONSE;
     }
-    printf("ARP response setnt!\n");
+    printf("ARP response sent!\n");
     return SUCCESS;
 }
 
